@@ -1,0 +1,5 @@
+# Dependencies for Linux
+evdev==1.7.0 ; sys_platform == 'linux'
+
+# Dependencies for Windows
+keyboard==0.13.5 ; sys_platform == 'win32'
