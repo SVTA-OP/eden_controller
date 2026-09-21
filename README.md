@@ -36,3 +36,26 @@ For detailed instructions and technical documentation, please refer to the `docs
 
 4. **Map in your Game/Emulator:**
    In your emulator's input configuration, change the Input Device to **Eden Virtual Gamepad**. Click on the button slots and press the corresponding buttons on your phone to map them.
+
+## Quick Start (Windows)
+
+Windows doesn't natively support virtual gamepads out-of-the-box like Linux, so the script will automatically fall back to injecting standard keyboard strokes (WASD/IJKL for joysticks, C/X/V/Z for face buttons).
+
+1. **Install dependencies:**
+   ```cmd
+   cd receiver
+   pip install keyboard
+   ```
+
+2. **Start the receiver as Administrator:**
+   Open a terminal as **Administrator** (required for games to detect the injected keys) and run:
+   ```cmd
+   python receiver.py --bind 0.0.0.0 --port 9876 --verbose
+   ```
+   *(You can also pass `--deadzone 0.25` to adjust the sensitivity of the analog-to-digital joystick translation).*
+
+3. **Install and run the Android app:**
+   Enter your Windows PC's local IP address into the app's settings.
+
+4. **Map in your Game/Emulator:**
+   Leave your emulator's Input Device set to **Keyboard Only**. See the [Receiver docs](docs/receiver_daemon.md) for the full default key mapping layout.
