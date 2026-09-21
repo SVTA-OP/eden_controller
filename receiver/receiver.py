@@ -125,8 +125,9 @@ elif sys.platform == 'win32':
         sys.exit(1)
         
     class WindowsKeyboardInjector(Injector):
-        def __init__(self):
+        def __init__(self, deadzone):
             self.prev_buttons = 0
+            self.deadzone = deadzone
             self.key_map = {
                 BTN_A: 'c', BTN_B: 'x', BTN_X: 'v', BTN_Y: 'z',
                 BTN_L: 'q', BTN_R: 'e', BTN_ZL: 'r', BTN_ZR: 't',
@@ -134,6 +135,12 @@ elif sys.platform == 'win32':
                 BTN_DPAD_UP: 'up', BTN_DPAD_DOWN: 'down', 
                 BTN_DPAD_LEFT: 'left', BTN_DPAD_RIGHT: 'right',
             }
+            self.axes_keys = {
+                'L_UP': 'w', 'L_DOWN': 's', 'L_LEFT': 'a', 'L_RIGHT': 'd',
+                'R_UP': 'i', 'R_DOWN': 'k', 'R_LEFT': 'j', 'R_RIGHT': 'l'
+            }
+            self.prev_axes = {k: False for k in self.axes_keys}
+            
         def update(self, buttons, lx, ly, rx, ry, verbose):
             changed = self.prev_buttons ^ buttons
             if changed:
@@ -142,6 +149,23 @@ elif sys.platform == 'win32':
                         if buttons & mask: keyboard.press(k)
                         else: keyboard.release(k)
             self.prev_buttons = buttons
+            
+            nlx, nly = lx / 127.0, ly / 127.0
+            nrx, nry = rx / 127.0, ry / 127.0
+            
+            curr_axes = {
+                'L_UP': nly < -self.deadzone, 'L_DOWN': nly > self.deadzone,
+                'L_LEFT': nlx < -self.deadzone, 'L_RIGHT': nlx > self.deadzone,
+                'R_UP': nry < -self.deadzone, 'R_DOWN': nry > self.deadzone,
+                'R_LEFT': nrx < -self.deadzone, 'R_RIGHT': nrx > self.deadzone,
+            }
+            
+            for key_name, is_pressed in curr_axes.items():
+                if is_pressed != self.prev_axes[key_name]:
+                    k = self.axes_keys[key_name]
+                    if is_pressed: keyboard.press(k)
+                    else: keyboard.release(k)
+                    self.prev_axes[key_name] = is_pressed
             
         def release_all(self):
             self.update(0, 0, 0, 0, 0, False)
@@ -175,13 +199,14 @@ def main():
     parser = argparse.ArgumentParser(description='Eden Controller Receiver')
     parser.add_argument('--bind', default='0.0.0.0', help='IP to bind to')
     parser.add_argument('--port', type=int, default=9876, help='UDP port')
+    parser.add_argument('--deadzone', type=float, default=0.25, help='Joystick deadzone for keyboard mode')
     parser.add_argument('--verbose', action='store_true', help='Print state changes')
     args = parser.parse_args()
     
     if sys.platform == 'linux':
         injector = LinuxGamepadInjector()
     elif sys.platform == 'win32':
-        injector = WindowsKeyboardInjector()
+        injector = WindowsKeyboardInjector(args.deadzone)
     else:
         injector = DummyInjector()
         
