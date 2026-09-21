@@ -25,10 +25,25 @@ This is ideal for emulators like Yuzu/Ryujinx/Steam, as they will natively recog
 
 ## Windows (Keyboard Fallback)
 
-On Windows, `evdev` is not available. The script falls back to injecting standard keyboard keys using the `keyboard` module. It maps controller buttons and analog stick extremes to digital keyboard keys (e.g., Right stick maps to I, J, K, L).
+On Windows, `evdev` is not available for virtual gamepads. Instead, the script falls back to injecting standard keyboard keys using the `keyboard` module. It maps controller buttons to keyboard letters, and translates analog stick movements into digital key presses (WASD and IJKL).
 
-1. Install keyboard: `pip install keyboard`
-2. Run the script as Administrator, otherwise modern games will ignore the injected keyboard events.
+### Setup and Running on Windows
+1. Open your terminal/command prompt as **Administrator**. This is strictly required on Windows so that the injected keystrokes can be detected by emulators and modern games.
+2. Install the required module: `pip install keyboard`
+3. Run the script:
+   ```cmd
+   python receiver.py --bind 0.0.0.0 --port 9876 --verbose --deadzone 0.25
+   ```
+   - `--deadzone`: Controls the sensitivity of the analog sticks when translating to digital WASD/IJKL key presses (default `0.25`). Increase this if your phone's joystick is triggering keys too early.
+   
+### Windows Key Mappings
+When using the Windows fallback, the emulator's **Input Device** should be set to "Keyboard Only". The script injects the following default keys:
+- **Face Buttons:** `C`, `X`, `V`, `Z` (for A, B, X, Y)
+- **Left Stick:** `W`, `A`, `S`, `D`
+- **Right Stick:** `I`, `J`, `K`, `L`
+- **D-Pad:** Arrow keys
+- **Triggers/Bumpers:** `Q`, `E`, `R`, `T`
+- **Minus/Plus:** `N`, `M`
 
 ## Running
 
