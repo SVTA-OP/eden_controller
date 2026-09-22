@@ -10,6 +10,8 @@ On Linux, the receiver uses the `evdev` library to create a native **Eden Virtua
 - Triggers, Bumpers, and Stick clicks
 - True analog ABS axes for the left and right joysticks (values -127 to 127).
 
+**Multiplayer Support:** The receiver automatically supports up to 4 concurrent players. When multiple phones connect to the same IP/Port, the receiver dynamically spawns `Eden Virtual Gamepad 1`, `Eden Virtual Gamepad 2`, etc. so your games can distinguish them as separate controllers.
+
 This is ideal for emulators like Yuzu/Ryujinx/Steam, as they will natively recognize the analog sticks and buttons.
 
 ### Setup and Permissions
@@ -26,6 +28,8 @@ This is ideal for emulators like Yuzu/Ryujinx/Steam, as they will natively recog
 ## Windows (Keyboard Fallback)
 
 On Windows, `evdev` is not available for virtual gamepads. Instead, the script falls back to injecting standard keyboard keys using the `keyboard` module. It maps controller buttons to keyboard letters, and translates analog stick movements into digital key presses (WASD and IJKL).
+
+*Note on Multiplayer:* On Windows, because it injects raw keyboard strokes, multiple connected phones will fight over the same keyboard keys. True multi-controller multiplayer is only supported on Linux.
 
 ### Setup and Running on Windows
 1. Open your terminal/command prompt as **Administrator**. This is strictly required on Windows so that the injected keystrokes can be detected by emulators and modern games.
