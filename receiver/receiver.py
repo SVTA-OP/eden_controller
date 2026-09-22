@@ -40,7 +40,7 @@ if sys.platform == 'linux':
         sys.exit(1)
         
     class LinuxGamepadInjector(Injector):
-        def __init__(self):
+        def __init__(self, player_id=1):
             cap = {
                 e.EV_KEY: [
                     e.BTN_A, e.BTN_B, e.BTN_X, e.BTN_Y,
@@ -56,7 +56,7 @@ if sys.platform == 'linux':
                     (e.ABS_RY, AbsInfo(value=0, min=-127, max=127, fuzz=0, flat=0, resolution=0)),
                 ]
             }
-            self.ui = UInput(cap, name="Eden Virtual Gamepad")
+            self.ui = UInput(cap, name=f"Eden Virtual Gamepad {player_id}")
             self.prev_buttons = 0
             self.prev_lx = 0
             self.prev_ly = 0
@@ -68,10 +68,10 @@ if sys.platform == 'linux':
             # Nintendo layout -> Standard evdev Gamepad mapping:
             # A is East, B is South, X is North, Y is West.
             self.btn_map = {
-                BTN_A: e.BTN_EAST,
-                BTN_B: e.BTN_SOUTH,
-                BTN_X: e.BTN_NORTH,
-                BTN_Y: e.BTN_WEST,
+                BTN_A: e.BTN_EAST,  # Right button (Jump in SMO)
+                BTN_B: e.BTN_NORTH, # Top button (Throw in SMO)
+                BTN_X: e.BTN_SOUTH, # Bottom button (Jump in SMO)
+                BTN_Y: e.BTN_WEST,  # Left button (Throw in SMO)
                 BTN_L: e.BTN_TL,
                 BTN_R: e.BTN_TR,
                 BTN_ZL: e.BTN_TL2,
@@ -125,7 +125,7 @@ elif sys.platform == 'win32':
         sys.exit(1)
         
     class WindowsKeyboardInjector(Injector):
-        def __init__(self, deadzone):
+        def __init__(self, deadzone, player_id=1):
             self.prev_buttons = 0
             self.deadzone = deadzone
             self.key_map = {
@@ -203,18 +203,11 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='Print state changes')
     args = parser.parse_args()
     
-    if sys.platform == 'linux':
-        injector = LinuxGamepadInjector()
-    elif sys.platform == 'win32':
-        injector = WindowsKeyboardInjector(args.deadzone)
-    else:
-        injector = DummyInjector()
-        
+    print(f"Listening on {args.bind}:{args.port} (UDP)")
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((args.bind, args.port))
     sock.settimeout(0.5)
-    
-    print(f"Listening on {args.bind}:{args.port} (UDP)")
     
     running = True
     def handle_sigint(sig, frame):
@@ -225,23 +218,71 @@ def main():
     signal.signal(signal.SIGINT, handle_sigint)
     signal.signal(signal.SIGTERM, handle_sigint)
 
-    state = {}
+    MAX_PLAYERS = 4
+    clients = {} # addr -> {'injector': Injector, 'state': {}, 'last_seen': time, 'player_id': int}
+    
+    def get_free_player_id():
+        used_ids = {c['player_id'] for c in clients.values()}
+        for i in range(1, MAX_PLAYERS + 1):
+            if i not in used_ids:
+                return i
+        return None
     
     try:
         while running:
             try:
                 data, addr = sock.recvfrom(1024)
-                state = process_packet(data, injector, state, args.verbose)
+                
+                if addr not in clients:
+                    player_id = get_free_player_id()
+                    if player_id is not None:
+                        print(f"New connection from {addr}. Assigning Player {player_id}")
+                        if sys.platform == 'linux':
+                            injector = LinuxGamepadInjector(player_id)
+                        elif sys.platform == 'win32':
+                            injector = WindowsKeyboardInjector(args.deadzone, player_id)
+                        else:
+                            injector = DummyInjector()
+                            
+                        clients[addr] = {
+                            'injector': injector,
+                            'state': {},
+                            'last_seen': time.time(),
+                            'player_id': player_id
+                        }
+                    else:
+                        continue # Server full
+                
+                client = clients[addr]
+                client['last_seen'] = time.time()
+                client['state'] = process_packet(data, client['injector'], client['state'], args.verbose)
+                
             except socket.timeout:
-                injector.release_all()
+                pass
             except BlockingIOError:
                 pass
             except Exception as e:
                 print(f"Error receiving packet: {e}")
-                injector.release_all()
+                
+            # Handle timeouts
+            now = time.time()
+            disconnected = []
+            for c_addr, client in clients.items():
+                if now - client['last_seen'] > 0.5:
+                    client['injector'].release_all()
+                if now - client['last_seen'] > 5.0:
+                    disconnected.append(c_addr)
+                    
+            for c_addr in disconnected:
+                p_id = clients[c_addr]['player_id']
+                print(f"Player {p_id} ({c_addr}) disconnected due to inactivity.")
+                clients[c_addr]['injector'].close()
+                del clients[c_addr]
+                
     finally:
-        injector.release_all()
-        injector.close()
+        for client in clients.values():
+            client['injector'].release_all()
+            client['injector'].close()
         sock.close()
 
 if __name__ == '__main__':

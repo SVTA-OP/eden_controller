@@ -74,7 +74,6 @@ fun FloatingJoystick(
     sender: UdpSender,
     modifier: Modifier = Modifier
 ) {
-    var center by remember { mutableStateOf<Offset?>(null) }
     var currentPosition by remember { mutableStateOf<Offset?>(null) }
     val maxRadius = 150f
 
@@ -83,45 +82,49 @@ fun FloatingJoystick(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    center = down.position
-                    currentPosition = down.position
+                    val centerOffset = Offset(size.width / 2f, size.height / 2f)
+                    
+                    fun updateJoy(pos: Offset) {
+                        currentPosition = pos
+                        val dx = pos.x - centerOffset.x
+                        val dy = pos.y - centerOffset.y
+                        val distance = hypot(dx, dy)
+                        
+                        val clampedDistance = min(distance, maxRadius)
+                        val ratio = if (distance > 0) clampedDistance / distance else 0f
+                        val clampedX = dx * ratio
+                        val clampedY = dy * ratio
+                        
+                        val mappedX = ((clampedX / maxRadius) * 127).toInt().toByte()
+                        val mappedY = ((clampedY / maxRadius) * 127).toInt().toByte()
+                        
+                        var changed = false
+                        if (isLeftStick) {
+                            if (ControllerState.leftX != mappedX || ControllerState.leftY != mappedY) {
+                                ControllerState.leftX = mappedX
+                                ControllerState.leftY = mappedY
+                                changed = true
+                            }
+                        } else {
+                            if (ControllerState.rightX != mappedX || ControllerState.rightY != mappedY) {
+                                ControllerState.rightX = mappedX
+                                ControllerState.rightY = mappedY
+                                changed = true
+                            }
+                        }
+                        if (changed) sender.triggerImmediateUpdate()
+                    }
+                    
+                    updateJoy(down.position)
                     
                     do {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id }
                         if (change != null && change.pressed) {
-                            currentPosition = change.position
-                            val dx = change.position.x - center!!.x
-                            val dy = change.position.y - center!!.y
-                            val distance = hypot(dx, dy)
-                            
-                            val clampedDistance = min(distance, maxRadius)
-                            val ratio = if (distance > 0) clampedDistance / distance else 0f
-                            val clampedX = dx * ratio
-                            val clampedY = dy * ratio
-                            
-                            val mappedX = ((clampedX / maxRadius) * 127).toInt().toByte()
-                            val mappedY = ((clampedY / maxRadius) * 127).toInt().toByte()
-                            
-                            var changed = false
-                            if (isLeftStick) {
-                                if (ControllerState.leftX != mappedX || ControllerState.leftY != mappedY) {
-                                    ControllerState.leftX = mappedX
-                                    ControllerState.leftY = mappedY
-                                    changed = true
-                                }
-                            } else {
-                                if (ControllerState.rightX != mappedX || ControllerState.rightY != mappedY) {
-                                    ControllerState.rightX = mappedX
-                                    ControllerState.rightY = mappedY
-                                    changed = true
-                                }
-                            }
-                            if (changed) sender.triggerImmediateUpdate()
+                            updateJoy(change.position)
                         }
                     } while (change != null && change.pressed)
                     
-                    center = null
                     currentPosition = null
                     if (isLeftStick) {
                         ControllerState.leftX = 0
@@ -134,21 +137,20 @@ fun FloatingJoystick(
                 }
             }
     ) {
-        center?.let { c ->
-            drawCircle(Color.White.copy(alpha = 0.2f), radius = maxRadius, center = c)
-            
-            currentPosition?.let { p ->
-                val dx = p.x - c.x
-                val dy = p.y - c.y
-                val distance = hypot(dx, dy)
-                
-                val clampedDistance = min(distance, maxRadius)
-                val ratio = if (distance > 0) clampedDistance / distance else 0f
-                val thumbX = c.x + dx * ratio
-                val thumbY = c.y + dy * ratio
-                
-                drawCircle(Color.White.copy(alpha = 0.5f), radius = 50f, center = Offset(thumbX, thumbY))
-            }
-        }
+        val centerOffset = center
+        
+        drawCircle(Color.White.copy(alpha = 0.2f), radius = maxRadius, center = centerOffset)
+        
+        val p = currentPosition ?: centerOffset
+        val dx = p.x - centerOffset.x
+        val dy = p.y - centerOffset.y
+        val distance = hypot(dx, dy)
+        
+        val clampedDistance = min(distance, maxRadius)
+        val ratio = if (distance > 0) clampedDistance / distance else 0f
+        val thumbX = centerOffset.x + dx * ratio
+        val thumbY = centerOffset.y + dy * ratio
+        
+        drawCircle(Color.White.copy(alpha = 0.5f), radius = 50f, center = Offset(thumbX, thumbY))
     }
 }
